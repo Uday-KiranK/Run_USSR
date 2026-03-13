@@ -32,36 +32,33 @@ const Layout = () => {
 
   const rows = [...new Set(boxes.map(b => b.row))].sort();
 
-  const handleBook = async () => {
-    if (!selected) return;
-    setBooking(true);
-    setError('');
-    try {
-      const res = await api.post('/orders/book', { boxId: selected._id });
-      navigate(`/payment/${res.data.orderId}/${selected.identifiableName}`);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Booking failed');
-    } finally {
-      setBooking(false);
-    }
-  };
+const handleBook = () => {
+  if (!selected) return;
+
+  navigate(`/payment/${selected._id}/${selected.identifiableName}`);
+};
 
   return (
     <div className="page-viewport">
       <div className="bg-glow" />
+
       <div className="page-container">
+
         <motion.div className="page-header" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
           <button className="back-btn" onClick={() => navigate('/terminals')}>
-            <ArrowLeft size={18} /> Back
+            <ArrowLeft size={18}/> Back
           </button>
+
           <div>
             <p className="page-eyebrow">STEP 1 OF 3</p>
             <h1 className="page-title">Choose Your Box</h1>
           </div>
         </motion.div>
 
+        {/* STATUS LEGEND */}
         <div className="legend">
-          {[['available','Available'],['booked','Booked'],['occupied','In Use'],['disabled','Disabled']].map(([cls,label]) => (
+          {[['available','Available'],['booked','Booked'],['occupied','In Use'],['disabled','Disabled']]
+          .map(([cls,label]) => (
             <div key={cls} className="legend-item">
               <div className={`legend-dot ${cls}`} />
               <span>{label}</span>
@@ -69,50 +66,141 @@ const Layout = () => {
           ))}
         </div>
 
-        {loading ? <div className="layout-loading">Loading layout...</div> : (
-          <motion.div className="locker-grid" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            {rows.map(row => (
-              <div key={row} className="locker-row">
-                <span className="row-label">{String.fromCharCode(65 + row)}</span>
-                <div className="row-boxes">
-                  {boxes.filter(b => b.row === row).sort((a,b) => a.col - b.col).map(box => {
-                    const status = STATUS_COLORS[box.boxStatus] || 'disabled';
-                    const isAvail = status === 'available';
-                    const isSel = selected?._id === box._id;
-                    return (
-                      <motion.button
-                        key={box._id}
-                        className={`box-cell ${status} ${isSel ? 'selected' : ''}`}
-                        onClick={() => isAvail && setSelected(isSel ? null : box)}
-                        whileHover={isAvail ? { scale: 1.08 } : {}}
-                        whileTap={isAvail ? { scale: 0.95 } : {}}
-                        disabled={!isAvail}
-                      >
-                        {isSel ? <Lock size={14} /> : box.identifiableName.split('-')[1]}
-                      </motion.button>
-                    );
-                  })}
+
+        {/* MAIN GRID + SIDE PANEL */}
+        <div className="layout-main">
+
+          {loading ? (
+            <div className="layout-loading">Loading layout...</div>
+          ) : (
+
+            <motion.div
+              className="locker-grid"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+
+              {rows.map(row => (
+                <div key={row} className="locker-row">
+
+                  <span className="row-label">
+                    {String.fromCharCode(65 + row)}
+                  </span>
+
+                  <div className="row-boxes">
+                    {boxes
+                      .filter(b => b.row === row)
+                      .sort((a,b) => a.col - b.col)
+                      .map(box => {
+
+                        const status = STATUS_COLORS[box.boxStatus] || 'disabled';
+                        const isAvail = status === 'available';
+                        const isSel = selected?._id === box._id;
+
+                        const sizeClass =
+                          box.type?.toLowerCase() === 'large'
+                            ? 'box-large'
+                            : box.type?.toLowerCase() === 'medium'
+                            ? 'box-medium'
+                            : 'box-small';
+
+                        return (
+                          <motion.button
+                            key={box._id}
+                            className={`box-cell ${sizeClass} ${status} ${isSel ? 'selected' : ''}`}
+                            onClick={() => isAvail && setSelected(isSel ? null : box)}
+                            whileHover={isAvail ? { scale: 1.08 } : {}}
+                            whileTap={isAvail ? { scale: 0.95 } : {}}
+                            disabled={!isAvail}
+                          >
+
+                            {isSel
+                              ? <Lock size={14}/>
+                              : (
+                                  box.type?.toLowerCase()==='large'
+                                  ? 'L'
+                                  : box.type?.toLowerCase()==='medium'
+                                  ? 'M'
+                                  : 'S'
+                                )
+                            }
+
+                          </motion.button>
+                        );
+                      })}
+                  </div>
+
                 </div>
-              </div>
-            ))}
-          </motion.div>
-        )}
+              ))}
+
+            </motion.div>
+
+          )}
+
+
+          {/* SIDE SIZE GUIDE */}
+          <div className="locker-guide">
+
+            <h3>Locker Size Guide</h3>
+
+            <div className="guide-item">
+              <div className="guide-box small">S</div>
+              <p>
+                <strong>Small</strong><br/>
+                Phone, charger, accessories
+              </p>
+            </div>
+
+            <div className="guide-item">
+              <div className="guide-box medium">M</div>
+              <p>
+                <strong>Medium</strong><br/>
+                Shoes or small bag
+              </p>
+            </div>
+
+            <div className="guide-item">
+              <div className="guide-box large">L</div>
+              <p>
+                <strong>Large</strong><br/>
+                Laptop or backpack
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
 
         {error && <div className="error-bar" style={{marginTop:16}}>{error}</div>}
 
-        <motion.div className="bottom-panel" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <motion.div
+          className="bottom-panel"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+
           {selected ? (
             <div className="selected-info">
-              <Package size={18} color="#7B6EF6" />
-              <span>Box <strong>{selected.identifiableName}</strong> selected — <strong>{selected.type}</strong></span>
+              <Package size={18} color="#7B6EF6"/>
+              <span>
+                Box <strong>{selected.identifiableName}</strong> selected — <strong>{selected.type}</strong>
+              </span>
             </div>
           ) : (
             <p className="select-hint">Tap an available box to select it</p>
           )}
-          <button className="main-btn purple" onClick={handleBook} disabled={!selected || booking}>
-            {booking ? <span className="spinner white" /> : 'Continue to Payment'}
+
+          <button
+            className="main-btn purple"
+            onClick={handleBook}
+            disabled={!selected || booking}
+          >
+            {booking ? <span className="spinner white"/> : 'Continue to Payment'}
           </button>
+
         </motion.div>
+
       </div>
     </div>
   );
