@@ -1,3 +1,4 @@
+const sendSMS = require("../services/smsService");
 const { generateOTP } = require("../utils/helpers");
 const OtpToken = require("../models/OtpToken");
 const jwt = require("jsonwebtoken");
@@ -15,12 +16,17 @@ exports.sendOTP = async (req, res) => {
 
     const otp = generateOTP();
 
+    // Save OTP in database
     await OtpToken.create({
       phone,
       otp,
       expiresAt: Date.now() + 5 * 60 * 1000
     });
 
+    // Send OTP via SMS
+    await sendSMS(phone, otp);
+
+    // Print OTP in terminal (for debugging)
     console.log(`Generated OTP for ${phone} → ${otp}`);
 
     res.json({
