@@ -92,3 +92,33 @@ exports.verifyOTP = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+const User = require('../models/User');
+const bcrypt = require('bcryptjs');
+
+// ADMIN LOGIN
+exports.adminLogin = async (req, res) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password)
+      return res.status(400).json({ message: 'Phone and password required' });
+
+    const user = await User.findOne({ phoneNumber: phone, role: 'ADMIN' });
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ message: 'Invalid credentials' });
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role, phone: user.phoneNumber },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '24h' }
+    );
+
+    res.json({ message: 'Admin login successful', token, role: 'ADMIN' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
