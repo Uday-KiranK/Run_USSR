@@ -32,10 +32,11 @@ module.exports = {
     DECOMMISSIONED: 'DECOMMISSIONED',
   },
 
-  // PDF enum: FIVEBYFOUR = 5 columns x 4 rows = 20 boxes
   LAYOUT_TYPES: {
     FIVEBYFOUR: 'FIVEBYFOUR',
+    CUSTOM: 'CUSTOM',
   },
+  // Preset dimensions — CUSTOM uses rows/cols supplied directly in the request
   LAYOUT_DIMENSIONS: {
     FIVEBYFOUR: { rows: 4, cols: 5 },
   },
