@@ -1,0 +1,63 @@
+.orders-list { display: flex; flex-direction: column; gap: 14px; }
+
+.order-card {
+  background: rgba(10,12,79,0.5);
+  border: 1px solid rgba(123,110,246,0.12);
+  border-radius: 20px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: 0.2s;
+}
+
+.order-card:hover { border-color: rgba(123,110,246,0.3); transform: translateX(4px); }
+
+.order-card-left { display: flex; align-items: center; gap: 16px; }
+
+.order-status-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.order-status-icon.purple { background: rgba(123,110,246,0.15); color: #7B6EF6; }
+.order-status-icon.success { background: rgba(0,229,160,0.12); color: #00E5A0; }
+.order-status-icon.danger { background: rgba(255,77,109,0.12); color: #FF4D6D; }
+.order-status-icon.orange { background: rgba(255,165,0,0.12); color: orange; }
+.order-status-icon.muted { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.3); }
+
+.order-id { color: white; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.order-box { color: rgba(255,255,255,0.45); font-size: 12px; margin-bottom: 3px; }
+.order-date { color: rgba(255,255,255,0.25); font-size: 11px; }
+
+.order-badge {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+
+.order-badge.purple { background: rgba(123,110,246,0.15); color: #7B6EF6; border: 1px solid rgba(123,110,246,0.3); }
+.order-badge.success { background: rgba(0,229,160,0.1); color: #00E5A0; border: 1px solid rgba(0,229,160,0.3); }
+.order-badge.danger { background: rgba(255,77,109,0.1); color: #FF4D6D; border: 1px solid rgba(255,77,109,0.3); }
+.order-badge.orange { background: rgba(255,165,0,0.1); color: orange; border: 1px solid rgba(255,165,0,0.3); }
+.order-badge.muted { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); border: 1px solid rgba(255,255,255,0.1); }
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 80px 24px;
+  color: rgba(255,255,255,0.3);
+  font-size: 15px;
+}
