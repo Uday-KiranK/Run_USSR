@@ -9,7 +9,7 @@ const {
   releaseBox
 } = require('../services/allocationService');
 
-// GET /api/orders/terminals — list all terminals with available boxes
+// GET /api/orders/terminals
 exports.getTerminals = async (req, res) => {
   try {
     const terminals = await getAvailableTerminals();
@@ -20,7 +20,7 @@ exports.getTerminals = async (req, res) => {
   }
 };
 
-// GET /api/orders/terminals/:terminalId/layout — view box layout
+// GET /api/orders/terminals/:terminalId/layout
 exports.getLayout = async (req, res) => {
   try {
     const { terminalId } = req.params;
@@ -38,9 +38,7 @@ exports.getLayout = async (req, res) => {
   }
 };
 
-// POST /api/orders/book — book a specific box
-// POST /api/orders/book — select box + pay + set PIN in one flow
-// POST /api/orders/book — select box, atomic reservation
+// POST /api/orders/book
 exports.bookBox = async (req, res) => {
   try {
     const { boxId } = req.body;
@@ -72,7 +70,7 @@ exports.bookBox = async (req, res) => {
   }
 };
 
-// POST /api/orders/pay/:orderId — dummy payment
+// POST /api/orders/pay/:orderId
 exports.makePayment = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -85,7 +83,6 @@ exports.makePayment = async (req, res) => {
     if (order.userId.toString() !== userId.toString())
       return res.status(403).json({ message: 'Not your order' });
 
-    // Dummy payment — always succeeds
     order.slotPrice = 30;
     await order.save();
 
@@ -102,7 +99,7 @@ exports.makePayment = async (req, res) => {
   }
 };
 
-// POST /api/orders/set-pin/:orderId — user sets PIN after payment
+// POST /api/orders/set-pin/:orderId
 exports.setPin = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -138,8 +135,7 @@ exports.setPin = async (req, res) => {
   }
 };
 
-// POST /api/orders/complete/:orderId — complete pickup, release box
-// POST /api/orders/pickup/:orderId — user enters PIN at terminal
+// POST /api/orders/pickup/:orderId
 exports.completePickup = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -174,7 +170,7 @@ exports.completePickup = async (req, res) => {
   }
 };
 
-// POST /api/orders/cancel/:orderId — cancel order, release box
+// POST /api/orders/cancel/:orderId
 exports.cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -198,7 +194,7 @@ exports.cancelOrder = async (req, res) => {
   }
 };
 
-// GET /api/orders/my — get my orders
+// GET /api/orders/my
 exports.getMyOrders = async (req, res) => {
   try {
     const userId = req.user.userId || req.user._id;
@@ -214,7 +210,7 @@ exports.getMyOrders = async (req, res) => {
   }
 };
 
-// GET /api/orders/:orderId — get single order details
+// GET /api/orders/:orderId
 exports.getOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -231,5 +227,3 @@ exports.getOrder = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
-// POST /api/orders/ready/:orderId — admin marks order ready, reveals access code

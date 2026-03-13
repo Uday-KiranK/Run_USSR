@@ -14,7 +14,6 @@ const {
 
 router.get('/terminals', getTerminals);
 router.get('/terminals/:terminalId/layout', getLayout);
-
 router.post('/book', protect, bookBox);
 router.post('/pay/:orderId', protect, makePayment);
 router.post('/set-pin/:orderId', protect, setPin);

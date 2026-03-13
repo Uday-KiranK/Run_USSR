@@ -4,7 +4,7 @@ const TerminalMetaData = require('../models/TerminalMetaData');
 const Box = require('../models/Box');
 const Site = require('../models/Site');
 const { asyncHandler, generateBoxLabel, paginateQuery, validateObjectId } = require('../utils/helpers');
-const { LAYOUT_TYPES, LAYOUT_DIMENSIONS, TERMINAL_STATUSES } = require('../config/constants');
+const { LAYOUT_TYPES, LAYOUT_DIMENSIONS, TERMINAL_STATUSES, BOX_TYPES, ROW_LABELS } = require('../config/constants');
 
 // PDF Terminal: identifiableName, description, siteId, physicalLocation, status (TerminalStatus enum)
 // PDF TerminalMetaData: terminalId, layoutType, maxPorts, gatewayIdRef, pricingId, controllerId, skipPayment, enabled
@@ -34,10 +34,48 @@ const setupLayout = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid ID format' });
   }
 
-  // layoutType e.g. 'FIVEBYFOUR' — dimensions resolved from LAYOUT_DIMENSIONS lookup
-  const { layoutType = LAYOUT_TYPES.FIVEBYFOUR, gatewayIdRef, pricingId, skipPayment = false, boxType = 'MEDIUM' } = req.body;
-  if (!LAYOUT_DIMENSIONS[layoutType]) {
-    return res.status(400).json({ success: false, message: 'layoutType must be one of: ' + Object.keys(LAYOUT_DIMENSIONS).join(', ') });
+  const {
+    rows: customRows,
+    cols: customCols,
+    layoutType,
+    defaultType = 'MEDIUM',
+    boxes: boxConfig = [],
+    gatewayIdRef,
+    pricingId,
+    skipPayment = false,
+  } = req.body;
+
+  // Resolve dimensions — custom rows/cols take priority over preset layoutType
+  let rows, cols, resolvedLayoutType;
+  if (customRows || customCols) {
+    rows = parseInt(customRows);
+    cols = parseInt(customCols);
+    resolvedLayoutType = LAYOUT_TYPES.CUSTOM;
+  } else if (layoutType && LAYOUT_DIMENSIONS[layoutType]) {
+    ({ rows, cols } = LAYOUT_DIMENSIONS[layoutType]);
+    resolvedLayoutType = layoutType;
+  } else {
+    ({ rows, cols } = LAYOUT_DIMENSIONS[LAYOUT_TYPES.FIVEBYFOUR]);
+    resolvedLayoutType = LAYOUT_TYPES.FIVEBYFOUR;
+  }
+
+  if (!rows || !cols || rows < 1 || cols < 1 || rows > ROW_LABELS.length || cols > 20) {
+    return res.status(400).json({ success: false, message: `rows must be 1–${ROW_LABELS.length} and cols must be 1–20` });
+  }
+  if (!BOX_TYPES.includes(defaultType)) {
+    return res.status(400).json({ success: false, message: 'defaultType must be one of: ' + BOX_TYPES.join(', ') });
+  }
+
+  // Validate per-box overrides and build a lookup map
+  const boxTypeMap = {};
+  for (const b of boxConfig) {
+    if (b.row < 0 || b.row >= rows || b.col < 0 || b.col >= cols) {
+      return res.status(400).json({ success: false, message: `Box config at (${b.row}, ${b.col}) is out of bounds for a ${rows}×${cols} layout` });
+    }
+    if (!BOX_TYPES.includes(b.type)) {
+      return res.status(400).json({ success: false, message: `Invalid box type "${b.type}" — must be one of: ${BOX_TYPES.join(', ')}` });
+    }
+    boxTypeMap[`${b.row}-${b.col}`] = b.type;
   }
 
   const terminal = await Terminal.findById(id);
@@ -53,7 +91,6 @@ const setupLayout = asyncHandler(async (req, res) => {
     return res.status(409).json({ success: false, message: 'Layout already configured. Use PUT to update.' });
   }
 
-  const { rows, cols } = LAYOUT_DIMENSIONS[layoutType];
   const maxPorts = rows * cols;
 
   // NOTE: transactions confirmed working — project uses MongoDB Atlas
@@ -63,7 +100,7 @@ const setupLayout = asyncHandler(async (req, res) => {
     session.startTransaction();
 
     const metaData = await TerminalMetaData.create(
-      [{ terminalId: id, layoutType, rows, columns: cols, maxPorts, gatewayIdRef, pricingId, skipPayment, enabled: true }],
+      [{ terminalId: id, layoutType: resolvedLayoutType, rows, columns: cols, maxPorts, gatewayIdRef, pricingId, skipPayment, enabled: true }],
       { session }
     );
 
@@ -76,7 +113,7 @@ const setupLayout = asyncHandler(async (req, res) => {
           identifiableName: generateBoxLabel(r, c),
           row: r,
           col: c,
-          type: boxType,
+          type: boxTypeMap[`${r}-${c}`] || defaultType,
           boxStatus: 'EMPTY_CLOSED',
           port: r * cols + c,
         });
@@ -148,17 +185,59 @@ const updateLayout = asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, message: 'Invalid ID format' });
   }
 
-  const { layoutType = LAYOUT_TYPES.FIVEBYFOUR, gatewayIdRef, pricingId, skipPayment, boxType = 'MEDIUM' } = req.body;
-  if (!LAYOUT_DIMENSIONS[layoutType]) {
-    return res.status(400).json({ success: false, message: 'layoutType must be one of: ' + Object.keys(LAYOUT_DIMENSIONS).join(', ') });
+  const {
+    rows: customRows,
+    cols: customCols,
+    layoutType,
+    defaultType = 'MEDIUM',
+    boxes: boxConfig = [],
+    gatewayIdRef,
+    pricingId,
+    skipPayment,
+  } = req.body;
+
+  // Resolve dimensions — same logic as setupLayout
+  let rows, cols, resolvedLayoutType;
+  if (customRows || customCols) {
+    rows = parseInt(customRows);
+    cols = parseInt(customCols);
+    resolvedLayoutType = LAYOUT_TYPES.CUSTOM;
+  } else if (layoutType && LAYOUT_DIMENSIONS[layoutType]) {
+    ({ rows, cols } = LAYOUT_DIMENSIONS[layoutType]);
+    resolvedLayoutType = layoutType;
+  } else {
+    ({ rows, cols } = LAYOUT_DIMENSIONS[LAYOUT_TYPES.FIVEBYFOUR]);
+    resolvedLayoutType = LAYOUT_TYPES.FIVEBYFOUR;
   }
 
-  const bookedCount = await Box.countDocuments({ terminalId: id, boxStatus: 'BOOKED' });
-  if (bookedCount > 0) {
-    return res.status(409).json({ success: false, message: 'Cannot resize layout with BOOKED boxes' });
+  if (!rows || !cols || rows < 1 || cols < 1 || rows > ROW_LABELS.length || cols > 20) {
+    return res.status(400).json({ success: false, message: `rows must be 1–${ROW_LABELS.length} and cols must be 1–20` });
+  }
+  if (!BOX_TYPES.includes(defaultType)) {
+    return res.status(400).json({ success: false, message: 'defaultType must be one of: ' + BOX_TYPES.join(', ') });
   }
 
-  const { rows, cols } = LAYOUT_DIMENSIONS[layoutType];
+  // Validate per-box overrides and build lookup map
+  const boxTypeMap = {};
+  for (const b of boxConfig) {
+    if (b.row < 0 || b.row >= rows || b.col < 0 || b.col >= cols) {
+      return res.status(400).json({ success: false, message: `Box config at (${b.row}, ${b.col}) is out of bounds for a ${rows}×${cols} layout` });
+    }
+    if (!BOX_TYPES.includes(b.type)) {
+      return res.status(400).json({ success: false, message: `Invalid box type "${b.type}" — must be one of: ${BOX_TYPES.join(', ')}` });
+    }
+    boxTypeMap[`${b.row}-${b.col}`] = b.type;
+  }
+
+  // Block resize if any box is actively booked or in use
+  const activeCount = await Box.countDocuments({
+    terminalId: id,
+    boxStatus: { $in: ['BOOKED', 'OCCUPIED_OPEN', 'OCCUPIED_CLOSED', 'OPEN_REQUESTED'] },
+  });
+  if (activeCount > 0) {
+    return res.status(409).json({ success: false, message: 'Cannot reconfigure layout while boxes are active or booked' });
+  }
+
   const maxPorts = rows * cols;
 
   let session;
@@ -168,7 +247,7 @@ const updateLayout = asyncHandler(async (req, res) => {
 
     await Box.deleteMany({ terminalId: id }, { session });
 
-    const updateFields = { layoutType, maxPorts };
+    const updateFields = { layoutType: resolvedLayoutType, rows, columns: cols, maxPorts };
     if (gatewayIdRef) updateFields.gatewayIdRef = gatewayIdRef;
     if (pricingId) updateFields.pricingId = pricingId;
     if (skipPayment !== undefined) updateFields.skipPayment = skipPayment;
@@ -188,7 +267,7 @@ const updateLayout = asyncHandler(async (req, res) => {
           identifiableName: generateBoxLabel(r, c),
           row: r,
           col: c,
-          type: boxType,
+          type: boxTypeMap[`${r}-${c}`] || defaultType,
           boxStatus: 'EMPTY_CLOSED',
           port: r * cols + c,
         });
