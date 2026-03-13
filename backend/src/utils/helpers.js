@@ -12,7 +12,6 @@ const paginateQuery = (page = 1, limit = 20) => ({
 
 const validateObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-// From Person B's auth system — generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 module.exports = { asyncHandler, generateBoxLabel, paginateQuery, validateObjectId, generateOTP };
