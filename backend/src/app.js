@@ -11,6 +11,7 @@ app.use('/api/terminals', require('./routes/terminalRoutes'));
 app.use('/api/boxes',     require('./routes/boxRoutes'));
 app.use('/api/orders',    require('./routes/orderRoutes'));
 app.use('/api/pricing',   require('./routes/pricingRoutes'));
+app.use('/api/sim',       require('./routes/simRoutes'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
