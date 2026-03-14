@@ -39,6 +39,8 @@ const OrderCard = ({ order, index, navigate }) => {
   const boxLabel = order.boxId?.identifiableName || order.boxName;
   const terminalName = order.terminalId?.identifiableName;
   const terminalLoc = order.terminalId?.physicalLocation;
+  // User data — prefer the stored phoneNumber on the order, fall back to populated user record
+  const displayPhone = order.phoneNumber || order.userId?.phoneNumber || '';
 
   return (
     <motion.div
@@ -75,6 +77,11 @@ const OrderCard = ({ order, index, navigate }) => {
             </p>
           )}
           <p className="order-date">{new Date(order.createdAt).toLocaleString()}</p>
+          {displayPhone && (
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 2 }}>
+              {order.userId?.name ? `${order.userId.name} · ` : ''}{displayPhone}
+            </p>
+          )}
           {isActive && order.expiryTime && (
             <CountdownTimer expiryTime={order.expiryTime} style={{ marginTop: 4, display: 'block' }} />
           )}
@@ -121,6 +128,7 @@ const MyOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const userPhone = localStorage.getItem('phone') || '';
 
   useEffect(() => {
     api.get('/orders/my')
@@ -143,6 +151,11 @@ const MyOrders = () => {
           <div>
             <p className="page-eyebrow">MY ORDERS</p>
             <h1 className="page-title">RuntimeTerror</h1>
+            {userPhone && (
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginTop: 4, letterSpacing: 0.5 }}>
+                {userPhone}
+              </p>
+            )}
           </div>
         </motion.div>
 

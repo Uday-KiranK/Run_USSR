@@ -1,6 +1,7 @@
 const sendSMS = require("../services/smsService");
 const { generateOTP } = require("../utils/helpers");
 const OtpToken = require("../models/OtpToken");
+const Order = require("../models/Order");
 const jwt = require("jsonwebtoken");
 
 
@@ -71,8 +72,19 @@ exports.verifyOTP = async (req, res) => {
 
     // Find or create a persistent User record so the same phone always gets the same userId
     let userRecord = await User.findOne({ phoneNumber: phone });
+    const isNewUser = !userRecord;
     if (!userRecord) {
       userRecord = await User.create({ phoneNumber: phone, verified: true });
+    }
+
+    // For existing users only: migrate historical orders that have a stale/wrong userId
+    // (created before the persistent-userId fix). New users have no legitimate orders yet,
+    // so skipping the migration prevents them from accidentally inheriting orphaned orders.
+    if (!isNewUser) {
+      await Order.updateMany(
+        { phoneNumber: phone, userId: { $ne: userRecord._id } },
+        { $set: { userId: userRecord._id } }
+      );
     }
 
     const tokenPayload = {

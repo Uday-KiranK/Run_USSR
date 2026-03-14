@@ -22,12 +22,15 @@ import KioskPin from './pages/kiosk/KioskPin';
 import KioskPickup from './pages/kiosk/KioskPickup';
 import KioskSuccess from './pages/kiosk/KioskSuccess';
 
+const isLoggedIn = () => !!localStorage.getItem('userToken');
+
 const isAdmin = () => {
   const token = localStorage.getItem('adminToken');
   const role = localStorage.getItem('role');
   return token && role === 'ADMIN';
 };
 
+const PrivateRoute = ({ children }) => isLoggedIn() ? children : <Navigate to="/" />;
 const AdminRoute = ({ children }) => isAdmin() ? children : <Navigate to="/admin" />;
 
 function App() {
@@ -36,13 +39,13 @@ function App() {
       <Routes>
         {/* User routes */}
         <Route path="/" element={<Login />} />
-        <Route path="/terminals" element={<Terminals />} />
-        <Route path="/layout/:terminalId" element={<Layout />} />
-        <Route path="/payment/:orderId/:boxName/:duration/:amount" element={<Payment />} />
-        <Route path="/set-pin/:orderId/:boxName" element={<SetPin />} />
-        <Route path="/confirmation/:orderId" element={<Confirmation />} />
-        <Route path="/pickup" element={<Pickup />} />
-        <Route path="/my-orders" element={<MyOrders />} />
+        <Route path="/terminals" element={<PrivateRoute><Terminals /></PrivateRoute>} />
+        <Route path="/layout/:terminalId" element={<PrivateRoute><Layout /></PrivateRoute>} />
+        <Route path="/payment/:orderId/:boxName/:duration/:amount" element={<PrivateRoute><Payment /></PrivateRoute>} />
+        <Route path="/set-pin/:orderId/:boxName" element={<PrivateRoute><SetPin /></PrivateRoute>} />
+        <Route path="/confirmation/:orderId" element={<PrivateRoute><Confirmation /></PrivateRoute>} />
+        <Route path="/pickup" element={<PrivateRoute><Pickup /></PrivateRoute>} />
+        <Route path="/my-orders" element={<PrivateRoute><MyOrders /></PrivateRoute>} />
 
         {/* Admin routes */}
         <Route path="/admin" element={<AdminLogin />} />

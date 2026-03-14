@@ -246,10 +246,21 @@ exports.completePickup = async (req, res) => {
 exports.cancelOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
+    const userId = req.user.userId || req.user._id;
+    const phone = req.user.phone;
+    const isAdmin = req.user.role === 'ADMIN';
 
     const order = await Order.findOne({ orderId });
     if (!order)
       return res.status(404).json({ message: 'Order not found' });
+
+    const ownsOrder =
+      isAdmin ||
+      order.userId.toString() === userId.toString() ||
+      (phone && order.phoneNumber === phone);
+
+    if (!ownsOrder)
+      return res.status(403).json({ message: 'Not your order' });
 
     if (order.status === 'COMPLETED')
       return res.status(400).json({ message: 'Cannot cancel completed order' });
@@ -273,23 +284,14 @@ exports.cancelOrder = async (req, res) => {
 // GET /api/orders/my
 exports.getMyOrders = async (req, res) => {
   try {
-    const userId = req.user.userId || req.user._id;
     const phone = req.user.phone;
 
-    if (!userId) return res.status(401).json({ message: 'Not authenticated' });
+    if (!phone) return res.status(401).json({ message: 'Not authenticated' });
 
-    // Migrate any historical orders (web or kiosk) that share this phone number
-    // but were created before the persistent-userId fix (they have a stale OtpToken _id).
-    // This is safe: we only reassign orders whose phoneNumber matches THIS user's verified phone.
-    if (phone) {
-      await Order.updateMany(
-        { phoneNumber: phone, userId: { $ne: userId } },
-        { $set: { userId } }
-      );
-    }
-
-    // Query strictly by userId — no $or with phone, so one user never sees another's orders.
-    const orders = await Order.find({ userId })
+    // Filter strictly by the verified phone number — phone is the ground truth in
+    // OTP-based auth and is stored on every order at booking time.
+    const orders = await Order.find({ phoneNumber: phone })
+      .populate('userId', 'phoneNumber name email')
       .populate('boxId', 'identifiableName type row col')
       .populate('terminalId', 'identifiableName physicalLocation')
       .sort({ createdAt: -1 });
@@ -319,12 +321,24 @@ exports.getAllOrders = async (req, res) => {
 exports.getOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
+    const userId = req.user.userId || req.user._id;
+    const phone = req.user.phone;
+    const isAdmin = req.user.role === 'ADMIN';
+
     const order = await Order.findOne({ orderId })
       .populate('boxId', 'identifiableName type row col')
       .populate('terminalId', 'identifiableName physicalLocation');
 
     if (!order)
       return res.status(404).json({ message: 'Order not found' });
+
+    const ownsOrder =
+      isAdmin ||
+      order.userId.toString() === userId.toString() ||
+      (phone && order.phoneNumber === phone);
+
+    if (!ownsOrder)
+      return res.status(403).json({ message: 'Not your order' });
 
     res.json({ order });
   } catch (error) {
