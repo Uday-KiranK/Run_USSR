@@ -47,21 +47,21 @@ exports.getTerminalLayout = async (terminalId) => {
   return boxes;
 };
 
-// CORE FUNCTION — atomic box allocation (prevents double booking)
-// CORE FUNCTION — atomic box allocation (prevents double booking)
+// CORE FUNCTION — create order without blocking the box.
+// Box is only atomically reserved at payment time, so abandoning the payment
+// page never leaves a box permanently blocked.
 exports.allocateChosenBox = async (userId, boxId, phoneNumber, durationHours = 1, slotPrice = 0, source = 'WEB') => {
-  const box = await Box.findOneAndUpdate(
-    { _id: boxId, boxStatus: BOX_STATUSES.EMPTY_CLOSED },
-    { $set: { boxStatus: BOX_STATUSES.BOOKED } },
-    { new: true }
-  );
-
-  if (!box) {
+  // Validate box exists and appears available (non-atomic, for early feedback only).
+  // The real atomic reservation happens in makePayment.
+  const box = await Box.findById(boxId);
+  if (!box) throw new Error('Box not found.');
+  if (box.boxStatus !== BOX_STATUSES.EMPTY_CLOSED) {
     throw new Error('Box is no longer available. Please select another.');
   }
 
   const accessCode = generateAccessCode();
   const expiryTime = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+  const paymentExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min to complete payment
 
   const order = await Order.create({
     orderId: generateOrderId(),
@@ -76,6 +76,7 @@ exports.allocateChosenBox = async (userId, boxId, phoneNumber, durationHours = 1
     durationHours,
     slotPrice,
     source,
+    paymentExpiry,
     pickupWindow: `${durationHours} hour${durationHours > 1 ? 's' : ''}`
   });
 

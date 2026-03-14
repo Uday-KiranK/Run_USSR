@@ -26,6 +26,8 @@ const orderSchema = new mongoose.Schema({
   boxName:       { type: String },           // e.g. "A-1"
   slotPrice:     { type: Number, default: 0 },
   source:        { type: String, enum: ['WEB', 'KIOSK'], default: 'WEB' },
+  paymentDone:   { type: Boolean, default: false },
+  paymentExpiry: { type: Date },
   startTime:     { type: Date, default: Date.now },
   endTime:       { type: Date },
   orderDate:     { type: Date, default: Date.now },

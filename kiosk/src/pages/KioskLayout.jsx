@@ -57,7 +57,7 @@ const KioskLayout = () => {
         durationHours: duration,
         source: 'KIOSK'
       });
-      navigate(`/kiosk/${terminalId}/pin/${res.data.orderId}/${selected.identifiableName}/${duration}/${res.data.amountDue}`);
+      navigate(`/kiosk/${terminalId}/payment/${res.data.orderId}/${selected.identifiableName}/${duration}/${res.data.amountDue}`);
     } catch (err) {
       setError(err.response?.data?.message || 'Booking failed');
     } finally { setBooking(false); }

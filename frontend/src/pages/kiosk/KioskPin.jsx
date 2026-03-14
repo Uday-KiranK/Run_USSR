@@ -26,7 +26,6 @@ const KioskPin = () => {
     if (pin.some(d => !d)) return setError('Enter all 4 digits');
     setLoading(true); setError('');
     try {
-      await kioskApi.post(`/orders/pay/${orderId}`);
       await kioskApi.post(`/orders/set-pin/${orderId}`, { pin: pin.join('') });
       navigate(`/kiosk/${terminalId}/success?box=${boxName}&order=${orderId}&mode=book`);
     } catch (err) {
