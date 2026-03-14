@@ -29,7 +29,9 @@ exports.sendOTP = async (req, res) => {
     // Send OTP via SMS
     await sendSMS(phone, otp);
 
-    console.log(`Generated OTP for ${phone} → ${otp}`);
+    console.log(`\n=============================`);
+    console.log(`  OTP for ${phone}: ${otp}`);
+    console.log(`=============================\n`);
 
     res.json({
       message: "OTP sent successfully"

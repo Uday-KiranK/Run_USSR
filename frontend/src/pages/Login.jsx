@@ -41,6 +41,8 @@ const Login = () => {
     setLoading(true);
     try {
       const res = await api.post('/auth/verify-otp', { phone, otp: otp.join('') });
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('role');
       localStorage.setItem('userToken', res.data.token);
       localStorage.setItem('phone', phone);
       navigate('/terminals');

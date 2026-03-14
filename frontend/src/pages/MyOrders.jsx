@@ -124,9 +124,19 @@ const OrderCard = ({ order, index, navigate }) => {
   );
 };
 
+const FILTER_TABS = [
+  { key: 'ALL',              label: 'All' },
+  { key: 'RESERVED',        label: 'Pending Payment' },
+  { key: 'READY_FOR_PICKUP',label: 'Ready to Pick Up' },
+  { key: 'COMPLETED',       label: 'Completed' },
+  { key: 'CANCELLED',       label: 'Cancelled' },
+  { key: 'EXPIRED',         label: 'Expired' },
+];
+
 const MyOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('ALL');
   const navigate = useNavigate();
   const userPhone = localStorage.getItem('phone') || '';
 
@@ -137,8 +147,7 @@ const MyOrders = () => {
       .finally(() => setLoading(false));
   }, [navigate]);
 
-  const pending = orders.filter(o => ACTIVE_STATUSES.has(o.status));
-  const history = orders.filter(o => !ACTIVE_STATUSES.has(o.status));
+  const filtered = filter === 'ALL' ? orders : orders.filter(o => o.status === filter);
 
   return (
     <div className="page-viewport">
@@ -175,28 +184,40 @@ const MyOrders = () => {
         ) : (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
 
-            {/* ── NOT YET PICKED UP ── */}
-            {pending.length > 0 && (
-              <div style={{ marginBottom: 32 }}>
-                <SectionLabel>NOT YET PICKED UP — {pending.length} ORDER{pending.length > 1 ? 'S' : ''}</SectionLabel>
-                <div className="orders-list">
-                  {pending.map((order, i) => (
-                    <OrderCard key={order._id} order={order} index={i} navigate={navigate} />
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* ── FILTER TABS ── */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
+              {FILTER_TABS.map(tab => {
+                const count = tab.key === 'ALL' ? orders.length : orders.filter(o => o.status === tab.key).length;
+                if (tab.key !== 'ALL' && count === 0) return null;
+                const isActive = filter === tab.key;
+                return (
+                  <button key={tab.key} onClick={() => setFilter(tab.key)} style={{
+                    padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                    fontFamily: 'Plus Jakarta Sans', fontSize: 12, fontWeight: 700,
+                    background: isActive ? '#7B6EF6' : 'rgba(255,255,255,0.06)',
+                    color: isActive ? 'white' : 'rgba(255,255,255,0.4)',
+                    transition: 'all 0.15s',
+                  }}>
+                    {tab.label} ({count})
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* ── HISTORY ── */}
-            {history.length > 0 && (
-              <div>
-                <SectionLabel>HISTORY</SectionLabel>
+            {/* ── ORDER LIST ── */}
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
+                No orders here
+              </div>
+            ) : (
+              <>
+                <SectionLabel>{filtered.length} ORDER{filtered.length !== 1 ? 'S' : ''}</SectionLabel>
                 <div className="orders-list">
-                  {history.map((order, i) => (
+                  {filtered.map((order, i) => (
                     <OrderCard key={order._id} order={order} index={i} navigate={navigate} />
                   ))}
                 </div>
-              </div>
+              </>
             )}
 
           </motion.div>

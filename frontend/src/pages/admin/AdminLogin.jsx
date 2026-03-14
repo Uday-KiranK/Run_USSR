@@ -18,6 +18,8 @@ const AdminLogin = () => {
     setError('');
     try {
       const res = await api.post('/auth/admin/login', { phone, password });
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('phone');
       localStorage.setItem('adminToken', res.data.token);
       localStorage.setItem('role', 'ADMIN');
       navigate('/admin/dashboard');
