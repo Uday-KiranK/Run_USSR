@@ -25,11 +25,13 @@ const orderSchema = new mongoose.Schema({
   phoneNumber:   { type: String },           // user phone at time of booking
   boxName:       { type: String },           // e.g. "A-1"
   slotPrice:     { type: Number, default: 0 },
+  source:        { type: String, enum: ['WEB', 'KIOSK'], default: 'WEB' },
   startTime:     { type: Date, default: Date.now },
   endTime:       { type: Date },
   orderDate:     { type: Date, default: Date.now },
   expiryTime:    { type: Date },             // when pickup window expires
-  pickupWindow:  { type: String },           // e.g. "24 hours"
+  pickupWindow:  { type: String },
+  durationHours: { type: Number, default: 1 },         // e.g. "24 hours"
   maxAttempts:   { type: Number, default: 3 } // max pickup attempts allowed
 }, { timestamps: true });
 

@@ -69,22 +69,28 @@ exports.verifyOTP = async (req, res) => {
     record.verified = true;
     await record.save();
 
-    const user = {
-      _id: record._id,
+    // Find or create a persistent User record so the same phone always gets the same userId
+    let userRecord = await User.findOne({ phoneNumber: phone });
+    if (!userRecord) {
+      userRecord = await User.create({ phoneNumber: phone, verified: true });
+    }
+
+    const tokenPayload = {
+      userId: userRecord._id,
       phone: phone,
       role: "user"
     };
 
     const token = jwt.sign(
-      user,
+      tokenPayload,
       process.env.JWT_SECRET || "secret",
-      { expiresIn: "1h" }
+      { expiresIn: "24h" }
     );
 
     res.json({
       message: "OTP verified",
       token,
-      user
+      user: tokenPayload
     });
 
   } catch (error) {

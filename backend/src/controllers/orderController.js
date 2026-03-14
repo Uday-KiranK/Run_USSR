@@ -1,13 +1,16 @@
 const Box = require('../models/Box');
 const Order = require('../models/Order');
 const Terminal = require('../models/Terminal');
+const mongoose = require('mongoose');
 const { validateObjectId } = require('../utils/helpers');
 const {
   getAvailableTerminals,
   getTerminalLayout,
   allocateChosenBox,
-  releaseBox
+  releaseBox,
+  getTerminalPricing
 } = require('../services/allocationService');
+  const TerminalMetaData = require('../models/TerminalMetaData');
 
 // GET /api/orders/terminals
 exports.getTerminals = async (req, res) => {
@@ -27,11 +30,37 @@ exports.getLayout = async (req, res) => {
     if (!validateObjectId(terminalId))
       return res.status(400).json({ message: 'Invalid terminal ID' });
 
-    const boxes = await getTerminalLayout(terminalId);
+    const [boxes, terminal] = await Promise.all([
+      getTerminalLayout(terminalId),
+      Terminal.findById(terminalId).select('identifiableName physicalLocation')
+    ]);
+
     if (!boxes.length)
       return res.status(404).json({ message: 'No boxes found for this terminal' });
 
-    res.json({ terminalId, boxes });
+    res.json({
+      terminalId,
+      boxes,
+      terminalName: terminal?.identifiableName || '',
+      terminalLocation: terminal?.physicalLocation || ''
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// GET /api/orders/terminals/:terminalId/pricing
+exports.getTerminalPricingInfo = async (req, res) => {
+  try {
+    const { terminalId } = req.params;
+    if (!validateObjectId(terminalId))
+      return res.status(400).json({ message: 'Invalid terminal ID' });
+
+    const rates = await getTerminalPricing(terminalId);
+    const slots = [1, 2, 3, 6, 12];
+
+    res.json({ terminalId, rates, slots });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -41,7 +70,7 @@ exports.getLayout = async (req, res) => {
 // POST /api/orders/book
 exports.bookBox = async (req, res) => {
   try {
-    const { boxId } = req.body;
+    const { boxId, durationHours = 1, source = 'WEB' } = req.body;
     const userId = req.user.userId || req.user._id;
     const phoneNumber = req.user.phone;
 
@@ -49,20 +78,32 @@ exports.bookBox = async (req, res) => {
     if (!validateObjectId(boxId))
       return res.status(400).json({ message: 'Invalid box ID' });
 
+    const validSlots = [1, 2, 3, 6, 12];
+    if (!validSlots.includes(Number(durationHours)))
+      return res.status(400).json({ message: 'Invalid duration. Choose from 1, 2, 3, 6, or 12 hours.' });
+
     const box = await Box.findById(boxId).populate('terminalId');
     if (!box) return res.status(404).json({ message: 'Box not found' });
 
     if (box.terminalId.status !== 'ACTIVE')
       return res.status(400).json({ message: 'Terminal is not active' });
 
-    const result = await allocateChosenBox(userId, boxId, phoneNumber);
+    // Calculate price based on box type and duration
+    const rates = await getTerminalPricing(box.terminalId._id);
+    const ratePerHour = rates[box.type] || 30;
+    const slotPrice = ratePerHour * Number(durationHours);
+
+    const result = await allocateChosenBox(userId, boxId, phoneNumber, Number(durationHours), slotPrice, source);
 
     res.status(201).json({
       message: 'Box selected! Please complete payment to confirm.',
       orderId: result.order.orderId,
       boxName: result.box.identifiableName,
+      boxType: result.box.type,
+      durationHours: Number(durationHours),
+      ratePerHour,
       status: result.order.status,
-      amountDue: 30
+      amountDue: slotPrice
     });
   } catch (error) {
     console.error(error);
@@ -76,22 +117,24 @@ exports.makePayment = async (req, res) => {
     const { orderId } = req.params;
     const userId = req.user.userId || req.user._id;
 
+    const phone = req.user.phone;
     const order = await Order.findOne({ orderId });
     if (!order) return res.status(404).json({ message: 'Order not found' });
     if (order.status !== 'RESERVED')
       return res.status(400).json({ message: 'Order is not in RESERVED status' });
-    if (order.userId.toString() !== userId.toString())
-      return res.status(403).json({ message: 'Not your order' });
+    const ownsOrder = order.userId.toString() === userId.toString() || order.phoneNumber === phone;
+    if (!ownsOrder) return res.status(403).json({ message: 'Not your order' });
 
-    order.slotPrice = 30;
+    // slotPrice already set during booking
     await order.save();
 
     res.json({
       message: 'Payment successful! Please set your PIN.',
       orderId: order.orderId,
       boxName: order.boxName,
+      durationHours: order.durationHours,
       status: order.status,
-      amountPaid: 30
+      amountPaid: order.slotPrice
     });
   } catch (error) {
     console.error(error);
@@ -110,10 +153,11 @@ exports.setPin = async (req, res) => {
     if (pin.length !== 4 || isNaN(pin))
       return res.status(400).json({ message: 'PIN must be exactly 4 digits' });
 
+    const phone = req.user.phone;
     const order = await Order.findOne({ orderId });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.userId.toString() !== userId.toString())
-      return res.status(403).json({ message: 'Not your order' });
+    const ownsOrder = order.userId.toString() === userId.toString() || order.phoneNumber === phone;
+    if (!ownsOrder) return res.status(403).json({ message: 'Not your order' });
     if (!order.slotPrice)
       return res.status(400).json({ message: 'Payment not completed yet' });
 
@@ -198,11 +242,33 @@ exports.cancelOrder = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     const userId = req.user.userId || req.user._id;
-    const orders = await Order.find({ userId })
+    const phone = req.user.phone;
+
+    // Query by userId OR phoneNumber to catch orders from any session (web/kiosk)
+    // and orders created before the persistent-userId fix
+    const query = phone
+      ? { $or: [{ userId }, { phoneNumber: phone }] }
+      : { userId };
+
+    const orders = await Order.find(query)
       .populate('boxId', 'identifiableName type row col')
       .populate('terminalId', 'identifiableName physicalLocation')
       .sort({ createdAt: -1 });
 
+    res.json({ orders });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// GET /api/orders/all  (admin — all orders)
+exports.getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate('boxId', 'identifiableName type row col')
+      .populate('terminalId', 'identifiableName physicalLocation')
+      .sort({ createdAt: -1 });
     res.json({ orders });
   } catch (error) {
     console.error(error);
