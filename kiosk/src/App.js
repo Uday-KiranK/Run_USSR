@@ -4,6 +4,7 @@ import KioskBook from './pages/KioskBook';
 import KioskPickup from './pages/KioskPickup';
 import KioskOTP from './pages/KioskOTP';
 import KioskLayout from './pages/KioskLayout';
+import KioskPayment from './pages/KioskPayment';
 import KioskPin from './pages/KioskPin';
 import KioskSuccess from './pages/KioskSuccess';
 
@@ -15,6 +16,7 @@ function App() {
         <Route path="/kiosk/:terminalId/book" element={<KioskBook />} />
         <Route path="/kiosk/:terminalId/otp" element={<KioskOTP />} />
         <Route path="/kiosk/:terminalId/layout" element={<KioskLayout />} />
+        <Route path="/kiosk/:terminalId/payment/:orderId/:boxName/:duration/:amount" element={<KioskPayment />} />
         <Route path="/kiosk/:terminalId/pin/:orderId/:boxName/:duration/:amount" element={<KioskPin />} />
         <Route path="/kiosk/:terminalId/pickup" element={<KioskPickup />} />
         <Route path="/kiosk/:terminalId/success" element={<KioskSuccess />} />

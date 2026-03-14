@@ -116,17 +116,43 @@ exports.makePayment = async (req, res) => {
   try {
     const { orderId } = req.params;
     const userId = req.user.userId || req.user._id;
-
     const phone = req.user.phone;
+    const now = new Date();
+
+    // Find and validate the order
     const order = await Order.findOne({ orderId });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    if (order.status !== 'RESERVED')
-      return res.status(400).json({ message: 'Order is not in RESERVED status' });
-    const ownsOrder = order.userId.toString() === userId.toString() || order.phoneNumber === phone;
-    if (!ownsOrder) return res.status(403).json({ message: 'Not your order' });
 
-    // slotPrice already set during booking
-    await order.save();
+    const ownsOrder =
+      order.userId.toString() === userId.toString() ||
+      (phone && order.phoneNumber === phone); // fallback for orders not yet migrated
+    if (!ownsOrder) return res.status(403).json({ message: 'Not your order' });
+    if (order.paymentDone) return res.status(409).json({ message: 'Payment already processed' });
+    if (order.status !== 'RESERVED') return res.status(400).json({ message: 'Order is not payable' });
+
+    if (order.paymentExpiry && order.paymentExpiry < now) {
+      await Order.findOneAndUpdate({ orderId }, { $set: { status: 'EXPIRED' } });
+      return res.status(410).json({ message: 'Payment window expired. Please book again.' });
+    }
+
+    // ATOMIC: Reserve the box now — this is the point where the box gets blocked.
+    // If two users race to pay for the same box, only the first succeeds here.
+    const reservedBox = await Box.findOneAndUpdate(
+      { _id: order.boxId, boxStatus: 'EMPTY_CLOSED' },
+      { $set: { boxStatus: 'BOOKED' } },
+      { new: true }
+    );
+
+    if (!reservedBox) {
+      // Box was just taken by another user who paid first — cancel this order
+      await Order.findOneAndUpdate({ orderId }, { $set: { status: 'CANCELLED' } });
+      return res.status(409).json({
+        message: 'This box was just taken by someone else. Please go back and select a different box.'
+      });
+    }
+
+    // Mark payment complete
+    await Order.findOneAndUpdate({ orderId }, { $set: { paymentDone: true } });
 
     res.json({
       message: 'Payment successful! Please set your PIN.',
@@ -156,9 +182,11 @@ exports.setPin = async (req, res) => {
     const phone = req.user.phone;
     const order = await Order.findOne({ orderId });
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    const ownsOrder = order.userId.toString() === userId.toString() || order.phoneNumber === phone;
+    const ownsOrder =
+      order.userId.toString() === userId.toString() ||
+      (phone && order.phoneNumber === phone); // fallback for orders not yet migrated
     if (!ownsOrder) return res.status(403).json({ message: 'Not your order' });
-    if (!order.slotPrice)
+    if (!order.paymentDone)
       return res.status(400).json({ message: 'Payment not completed yet' });
 
     order.pin = pin;
@@ -229,7 +257,11 @@ exports.cancelOrder = async (req, res) => {
     order.status = 'CANCELLED';
     await order.save();
 
-    await releaseBox(order.boxId);
+    // Only release the box if payment was completed (box was actually BOOKED).
+    // If unpaid, box was never blocked so nothing to release.
+    if (order.paymentDone) {
+      await releaseBox(order.boxId);
+    }
 
     res.json({ message: 'Order cancelled. Box is now available.' });
   } catch (error) {
@@ -244,13 +276,20 @@ exports.getMyOrders = async (req, res) => {
     const userId = req.user.userId || req.user._id;
     const phone = req.user.phone;
 
-    // Query by userId OR phoneNumber to catch orders from any session (web/kiosk)
-    // and orders created before the persistent-userId fix
-    const query = phone
-      ? { $or: [{ userId }, { phoneNumber: phone }] }
-      : { userId };
+    if (!userId) return res.status(401).json({ message: 'Not authenticated' });
 
-    const orders = await Order.find(query)
+    // Migrate any historical orders (web or kiosk) that share this phone number
+    // but were created before the persistent-userId fix (they have a stale OtpToken _id).
+    // This is safe: we only reassign orders whose phoneNumber matches THIS user's verified phone.
+    if (phone) {
+      await Order.updateMany(
+        { phoneNumber: phone, userId: { $ne: userId } },
+        { $set: { userId } }
+      );
+    }
+
+    // Query strictly by userId — no $or with phone, so one user never sees another's orders.
+    const orders = await Order.find({ userId })
       .populate('boxId', 'identifiableName type row col')
       .populate('terminalId', 'identifiableName physicalLocation')
       .sort({ createdAt: -1 });
