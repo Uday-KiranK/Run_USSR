@@ -22,7 +22,7 @@ const orderSchema = new mongoose.Schema({
   accessCode:    { type: String },           // 4-digit code for box opening
   otp:           { type: String },           // box access OTP
   pin:           { type: String },           // optional PIN for access
-  phoneNumber:   { type: String },           // user phone at time of booking
+  phoneNumber:   { type: String, index: true },  // user phone at time of booking
   boxName:       { type: String },           // e.g. "A-1"
   slotPrice:     { type: Number, default: 0 },
   source:        { type: String, enum: ['WEB', 'KIOSK'], default: 'WEB' },

@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { protect } = require('../middleware/authMiddleware');
+const { protect, adminOnly } = require('../middleware/authMiddleware');
 const {
   getTerminals,
   getLayout,
@@ -23,7 +23,7 @@ router.post('/set-pin/:orderId', protect, setPin);
 router.post('/pickup/:orderId', completePickup);
 router.post('/cancel/:orderId', protect, cancelOrder);
 router.get('/my', protect, getMyOrders);
-router.get('/all', protect, getAllOrders);
+router.get('/all', protect, adminOnly, getAllOrders);
 router.get('/:orderId', protect, getOrder);
 
 module.exports = router;
