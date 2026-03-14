@@ -6,6 +6,8 @@ router.route('/')
   .get(protect, adminOnly, c.getTerminals)
   .post(protect, adminOnly, c.createTerminal);
 
+router.get('/:id/monitor', protect, adminOnly, c.getTerminalMonitor);
+
 router.route('/:id')
   .get(protect, adminOnly, c.getTerminalById)
   .put(protect, adminOnly, c.updateTerminal);

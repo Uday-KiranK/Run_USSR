@@ -41,7 +41,7 @@ const Login = () => {
     setLoading(true);
     try {
       const res = await api.post('/auth/verify-otp', { phone, otp: otp.join('') });
-      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('userToken', res.data.token);
       localStorage.setItem('phone', phone);
       navigate('/terminals');
     } catch (err) {
@@ -141,6 +141,7 @@ const Login = () => {
         <div className="card-footer">
           <ShieldCheck size={13} /> <span>END-TO-END ENCRYPTED SESSION</span>
         </div>
+        <button className="text-btn" style={{marginTop:8, fontSize:11}} onClick={() => navigate('/admin')}>Admin Portal →</button>
       </motion.div>
     </div>
   );

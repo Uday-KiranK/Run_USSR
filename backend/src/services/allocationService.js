@@ -48,9 +48,8 @@ exports.getTerminalLayout = async (terminalId) => {
 };
 
 // CORE FUNCTION — atomic box allocation (prevents double booking)
-exports.allocateChosenBox = async (userId, boxId, phoneNumber) => {
-  // Atomic findOneAndUpdate — only succeeds if box is EMPTY_CLOSED
-  // This prevents two users booking same box simultaneously
+// CORE FUNCTION — atomic box allocation (prevents double booking)
+exports.allocateChosenBox = async (userId, boxId, phoneNumber, durationHours = 1, slotPrice = 0, source = 'WEB') => {
   const box = await Box.findOneAndUpdate(
     { _id: boxId, boxStatus: BOX_STATUSES.EMPTY_CLOSED },
     { $set: { boxStatus: BOX_STATUSES.BOOKED } },
@@ -62,7 +61,7 @@ exports.allocateChosenBox = async (userId, boxId, phoneNumber) => {
   }
 
   const accessCode = generateAccessCode();
-  const expiryTime = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  const expiryTime = new Date(Date.now() + durationHours * 60 * 60 * 1000);
 
   const order = await Order.create({
     orderId: generateOrderId(),
@@ -74,7 +73,10 @@ exports.allocateChosenBox = async (userId, boxId, phoneNumber) => {
     expiryTime,
     phoneNumber,
     boxName: box.identifiableName,
-    pickupWindow: '24 hours'
+    durationHours,
+    slotPrice,
+    source,
+    pickupWindow: `${durationHours} hour${durationHours > 1 ? 's' : ''}`
   });
 
   return { order, box, accessCode };
@@ -85,4 +87,26 @@ exports.releaseBox = async (boxId) => {
   await Box.findByIdAndUpdate(boxId, {
     boxStatus: BOX_STATUSES.EMPTY_CLOSED
   });
+};
+
+// Get pricing for a terminal
+exports.getTerminalPricing = async (terminalId) => {
+  const TerminalMetaData = require('../models/TerminalMetaData');
+  const Pricing = require('../models/Pricing');
+
+  const meta = await TerminalMetaData.findOne({ terminalId });
+  if (!meta || !meta.pricingId) {
+    // Default pricing if none set
+    return { SMALL: 20, MEDIUM: 30, LARGE: 50, EXTRA_LARGE: 80 };
+  }
+
+  const pricing = await Pricing.findById(meta.pricingId);
+  if (!pricing) return { SMALL: 20, MEDIUM: 30, LARGE: 50, EXTRA_LARGE: 80 };
+
+  try {
+    const parsed = JSON.parse(pricing.config);
+    return parsed.rates || { SMALL: 20, MEDIUM: 30, LARGE: 50, EXTRA_LARGE: 80 };
+  } catch {
+    return { SMALL: 20, MEDIUM: 30, LARGE: 50, EXTRA_LARGE: 80 };
+  }
 };

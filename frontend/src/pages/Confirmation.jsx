@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { CheckCircle, Package, ClipboardList, Navigation } from 'lucide-react';
+import { CheckCircle, ClipboardList, Navigation } from 'lucide-react';
 import api from '../api';
+import CountdownTimer from '../components/CountdownTimer';
 import './Confirmation.css';
 
 const Confirmation = () => {
@@ -48,8 +49,8 @@ const Confirmation = () => {
                 <span className="status-badge">{order.status}</span>
               </div>
               <div className="conf-row">
-                <span>Expires</span>
-                <strong>{new Date(order.expiryTime).toLocaleString()}</strong>
+                <span>Expires in</span>
+                <CountdownTimer expiryTime={order.expiryTime} style={{ fontSize: 14 }} />
               </div>
             </div>
           )}

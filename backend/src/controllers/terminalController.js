@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Terminal = require('../models/Terminal');
 const TerminalMetaData = require('../models/TerminalMetaData');
 const Box = require('../models/Box');
+const Order = require('../models/Order');
 const Site = require('../models/Site');
 const { asyncHandler, generateBoxLabel, paginateQuery, validateObjectId } = require('../utils/helpers');
 const { LAYOUT_TYPES, LAYOUT_DIMENSIONS, TERMINAL_STATUSES, BOX_TYPES, ROW_LABELS } = require('../config/constants');
@@ -285,4 +286,57 @@ const updateLayout = asyncHandler(async (req, res) => {
   }
 });
 
-module.exports = { createTerminal, setupLayout, getTerminals, getTerminalById, updateTerminal, updateLayout };
+const getTerminalMonitor = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!validateObjectId(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid ID format' });
+  }
+
+  const [terminal, metaData, boxes] = await Promise.all([
+    Terminal.findById(id).populate('siteId', 'name state'),
+    TerminalMetaData.findOne({ terminalId: id }),
+    Box.find({ terminalId: id }).sort({ row: 1, col: 1 }),
+  ]);
+
+  if (!terminal) return res.status(404).json({ success: false, message: 'Terminal not found' });
+
+  // Get active orders for all non-empty boxes
+  const activeBoxIds = boxes
+    .filter(b => !['EMPTY_CLOSED', 'DISABLED', 'CANCELLED'].includes(b.boxStatus))
+    .map(b => b._id);
+
+  const activeOrders = await Order.find({
+    boxId: { $in: activeBoxIds },
+    status: { $in: ['RESERVED', 'READY_FOR_PICKUP', 'IN_PROGRESS'] },
+  }).select('boxId orderId phoneNumber status startTime expiryTime slotPrice pin');
+
+  const orderByBox = {};
+  activeOrders.forEach(o => { orderByBox[o.boxId.toString()] = o; });
+
+  const enrichedBoxes = boxes.map(b => ({
+    _id: b._id,
+    identifiableName: b.identifiableName,
+    row: b.row,
+    col: b.col,
+    type: b.type,
+    boxStatus: b.boxStatus,
+    order: orderByBox[b._id.toString()] || null,
+  }));
+
+  res.json({
+    success: true,
+    data: {
+      terminal: { ...terminal.toObject(), metaData },
+      boxes: enrichedBoxes,
+      stats: {
+        total: boxes.length,
+        available: boxes.filter(b => b.boxStatus === 'EMPTY_CLOSED').length,
+        booked: boxes.filter(b => b.boxStatus === 'BOOKED').length,
+        occupied: boxes.filter(b => ['OCCUPIED_OPEN', 'OCCUPIED_CLOSED'].includes(b.boxStatus)).length,
+        disabled: boxes.filter(b => ['DISABLED', 'CANCELLED', 'BLOCKED'].includes(b.boxStatus)).length,
+      },
+    },
+  });
+});
+
+module.exports = { createTerminal, setupLayout, getTerminals, getTerminalById, updateTerminal, updateLayout, getTerminalMonitor };
