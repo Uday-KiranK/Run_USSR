@@ -1,25 +1,32 @@
 const axios = require("axios");
 
+// Normalize to 10-digit Indian mobile number (strip +91 / 91 prefix)
+const normalizePhone = (phone) => {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+  return digits;
+};
+
 const sendSMS = async (phone, otp) => {
-  try {
-    const response = await axios({
-      method: "POST",
-      url: "https://www.fast2sms.com/dev/bulkV2",
-      headers: {
-        authorization: "FE8g60zBHocMmIvLhZu53JfNTksR7Xjlp4yP9wGQei2CYUKraDl5oH7k4SYz0n8vbtTyjAQ2B1mF6Kiq",
-        "Content-Type": "application/json"
-      },
-      data: {
-        route: "q",
-        message: `Your Cloakbe OTP is ${otp}`,
-        numbers: phone
-      }
-    });
+  const number = normalizePhone(phone);
+  console.log(`[SMS] Sending OTP to ${number}`);
 
-    console.log("SMS sent:", response.data);
+  const response = await axios.get('https://www.fast2sms.com/dev/bulkV2', {
+    params: {
+      authorization: process.env.FAST2SMS_API_KEY,
+      route: 'q',
+      message: `${otp} is your Cloakbe OTP. Do not share it with anyone.`,
+      language: 'english',
+      flash: 0,
+      numbers: number,
+    },
+  });
 
-  } catch (error) {
-    console.error("SMS error:", error.response?.data || error.message);
+  console.log('[SMS] Fast2SMS response:', response.data);
+
+  if (!response.data?.return) {
+    throw new Error(response.data?.message || 'SMS delivery failed');
   }
 };
 
